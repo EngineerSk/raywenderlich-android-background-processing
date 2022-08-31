@@ -76,3 +76,6 @@ fastlane/readme.md
 !/.idea/encodings.xml
 !/.idea/copyright/
 !/.idea/compiler.xml
+/.idea/compiler.xml
+/app/src/main/res/xml/data_extraction_rules.xml
+/.idea/vcs.xml

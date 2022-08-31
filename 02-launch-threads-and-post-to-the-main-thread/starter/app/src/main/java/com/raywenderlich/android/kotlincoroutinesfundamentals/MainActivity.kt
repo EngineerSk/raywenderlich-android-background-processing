@@ -34,33 +34,66 @@
 
 package com.raywenderlich.android.kotlincoroutinesfundamentals
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.work.*
 import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.coroutines.*
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.concurrent.thread
 
 /**
  * Main Screen
  */
 class MainActivity : AppCompatActivity() {
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    // Switch to AppTheme for displaying the activity
-    setTheme(R.style.AppTheme)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // Switch to AppTheme for displaying the activity
+        setTheme(R.style.AppTheme)
 
-    super.onCreate(savedInstanceState)
-    setContentView(R.layout.activity_main)
-    
-    val imageUrl = URL("https://wallpaperplay.com/walls/full/1/c/7/38027.jpg")
-    val connection = imageUrl.openConnection() as HttpURLConnection
-    connection.doInput = true
-    connection.connect()
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        downloadImage()
+    }
 
-    val inputStream = connection.inputStream
-    val bitmap = BitmapFactory.decodeStream(inputStream)
+    private fun downloadImage() {
+        val constraints = Constraints.Builder()
+            .setRequiresBatteryNotLow(true)
+            .setRequiresStorageNotLow(true)
+            .setRequiredNetworkType(NetworkType.NOT_ROAMING)
+            .build()
 
-    image.setImageBitmap(bitmap)
-  }
+        val clearFilesRequest = OneTimeWorkRequestBuilder<FileClearWorker>().build()
+
+        val downloadRequest =
+            OneTimeWorkRequestBuilder<DownloadWorker>()
+                .setConstraints(constraints)
+                .build()
+
+        val workManager = WorkManager.getInstance(this)
+        workManager.beginWith(clearFilesRequest).then(downloadRequest).enqueue()
+        workManager.getWorkInfoByIdLiveData(downloadRequest.id).observe(this) { info ->
+            val imagePath = info.outputData.getString("image_path")
+            if (!imagePath.isNullOrEmpty()) {
+                displayImage(imagePath)
+            }
+        }
+    }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun displayImage(imagePath: String) {
+        GlobalScope.launch(Dispatchers.Main) {
+            val bitmap = loadImageFromFile(imagePath)
+            image.setImageBitmap(bitmap)
+        }
+    }
+
+    private suspend fun loadImageFromFile(imagePath: String): Bitmap? =
+        withContext(Dispatchers.IO) {
+            BitmapFactory.decodeFile(imagePath)
+        }
 }
